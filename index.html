@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>🧠 CodeBreaker: Challenge</title>
+  <style>
+    :root {
+      --bg: #000;
+      --fg: #00ff88;
+      --error: #ff5577;
+      --surface: #101010;
+      --accent: #00d4ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: "Fira Code", monospace;
+      padding: 2rem;
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    #game {
+      max-width: 900px;
+      width: 100%;
+    }
+    h1, h2 {
+      margin-bottom: 1rem;
+      text-shadow: 0 0 8px var(--fg);
+    }
+    textarea, button, input {
+      width: 100%;
+      background: var(--surface);
+      color: var(--fg);
+      border: 1px solid var(--fg);
+      padding: 1rem;
+      font-size: 1rem;
+      margin-top: 1rem;
+      border-radius: 4px;
+      transition: border 0.2s;
+      font-family: "Fira Code", monospace;
+    }
+    textarea:focus, button:hover, input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    button {
+      cursor: pointer;
+      background: transparent;
+    }
+    #timer {
+      font-weight: 700;
+      margin: 1rem 0;
+    }
+    .progress {
+      width: 100%;
+      height: 8px;
+      background: #222;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 1rem 0 2rem 0;
+    }
+    .progress-bar {
+      width: 0;
+      height: 100%;
+      background: var(--accent);
+      transition: width 0.2s linear;
+    }
+    .success { color: var(--fg); }
+    .error   { color: var(--error); }
+    #result-screen, #leaderboard-screen, #challenge-area, #start-screen {
+      display: none;
+    }
+    #start-screen {
+      max-width: 400px;
+      margin: 0 auto;
+    }
+    #feedback {
+      margin-top: 1rem;
+      min-height: 1.5rem;
+    }
+    #hint-text {
+      margin-top: 0.5rem;
+      font-style: italic;
+      color: var(--accent);
+      min-height: 1.5rem;
+    }
+    #leaderboard-list {
+      list-style: none;
+      padding-left: 0;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 1rem;
+      border: 1px solid var(--fg);
+      border-radius: 4px;
+      background: #111;
+    }
+    #leaderboard-list li {
+      padding: 0.3rem 0.6rem;
+      border-bottom: 1px solid #222;
+    }
+    #leaderboard-list li:last-child {
+      border-bottom: none;
+    }
+    @media (max-width: 600px) {
+      body { padding: 1rem; }
+      textarea { font-size: 0.9rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="game">
+
+    <!-- START SCREEN -->
+    <div id="start-screen">
+      <h1>🧠CodeBreaker:Challenge</h1>
+      <input type="text" id="username" placeholder="Enter your name" autocomplete="off" />
+      <button id="start-btn">Start Game</button>
+    </div>
+
+    <!-- CHALLENGE AREA -->
+    <div id="challenge-area">
+      <h2 id="challenge-title"></h2>
+      <p id="challenge-desc"></p>
+      <div id="timer">⏱️ 60s</div>
+      <div class="progress"><div id="progress-bar" class="progress-bar"></div></div>
+      <textarea id="code" rows="10" spellcheck="false">// Write your code here
+</textarea>
+      <button id="run-btn">Run & Test</button>
+      <button id="hint-btn" style="margin-top:0.5rem;">Show Hint</button>
+      <div id="hint-text"></div>
+      <div id="feedback"></div>
+      <p id="welcome-msg" style="margin-top:2rem; font-weight:bold;"></p>
+    </div>
+
+    <!-- RESULT SCREEN -->
+    <div id="result-screen">
+      <h2>Game Over!</h2>
+      <p id="score-text"></p>
+      <canvas id="result-chart" width="400" height="300"></canvas>
+      <button id="restart-btn" style="margin-top:1rem;">Play Again</button>
+      <button id="leaderboard-btn" style="margin-top:1rem;">View Leaderboard</button>
+    </div>
+
+    <!-- LEADERBOARD SCREEN -->
+    <div id="leaderboard-screen">
+      <h2>Leaderboard</h2>
+      <ul id="leaderboard-list"></ul>
+      <button id="leaderboard-back" style="margin-top:1rem;">Back</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const CHALLENGES = [
+      {
+        title: "Square a Number",
+        desc: "Write a function square(n) that returns the square of a number.",
+        hint: "Return n * n.",
+        tests: sandbox => typeof sandbox.square === "function" && sandbox.square(4) === 16
+      },
+      {
+        title: "Sum Array",
+        desc: "Write a function sum(arr) that returns the sum of all numbers in an array.",
+        hint: "Use a loop or array.reduce to sum the elements.",
+        tests: sandbox => typeof sandbox.sum === "function" && sandbox.sum([1,2,3,4]) === 10
+      },
+      {
+        title: "Check Even",
+        desc: "Write a function isEven(n) that returns true if n is even, else false.",
+        hint: "Use the modulus operator (%).",
+        tests: sandbox => typeof sandbox.isEven === "function" && sandbox.isEven(4) === true && sandbox.isEven(5) === false
+      },
+      {
+        title: "Reverse String",
+        desc: "Write a function reverse(str) that returns the reversed string.",
+        hint: "Use split, reverse, and join.",
+        tests: sandbox => typeof sandbox.reverse === "function" && sandbox.reverse('abc') === 'cba'
+      },
+      {
+        title: "Factorial",
+        desc: "Write a function factorial(n) that returns n! (factorial of n).",
+        hint: "Use recursion or a loop to multiply all numbers from 1 to n.",
+        tests: sandbox => typeof sandbox.factorial === "function" && sandbox.factorial(5) === 120
+      },
+      {
+        title: "Fibonacci",
+        desc: "Write a function fibonacci(n) that returns the nth Fibonacci number (0-indexed).",
+        hint: "Use recursion or iteration starting with 0,1.",
+        tests: sandbox => typeof sandbox.fibonacci === "function" && sandbox.fibonacci(7) === 13
+      },
+      {
+        title: "Palindrome Check",
+        desc: "Write a function isPalindrome(str) that checks if a string is a palindrome.",
+        hint: "Compare string to its reverse.",
+        tests: sandbox => typeof sandbox.isPalindrome === "function" && sandbox.isPalindrome('racecar') === true && sandbox.isPalindrome('hello') === false
+      },
+      {
+        title: "Find Max",
+        desc: "Write a function findMax(arr) that returns the largest number in an array.",
+        hint: "Use Math.max or loop through the array.",
+        tests: sandbox => typeof sandbox.findMax === "function" && sandbox.findMax([1,5,3]) === 5
+      },
+      {
+        title: "Count Vowels",
+        desc: "Write a function countVowels(str) that counts vowels in a string.",
+        hint: "Loop through the string and count 'a', 'e', 'i', 'o', 'u'.",
+        tests: sandbox => typeof sandbox.countVowels === "function" && sandbox.countVowels('hello') === 2
+      },
+      {
+        title: "Is Prime",
+        desc: "Write a function isPrime(n) that returns true if n is prime, else false.",
+        hint: "Check divisibility up to sqrt(n).",
+        tests: sandbox => typeof sandbox.isPrime === "function" && sandbox.isPrime(7) === true && sandbox.isPrime(8) === false
+      },
+      // You can add more challenges or rounds here.
+    ];
+
+    (() => {
+      // DOM elements
+      const usernameInput = document.getElementById("username");
+      const startBtn = document.getElementById("start-btn");
+      const challengeTitle = document.getElementById("challenge-title");
+      const challengeDesc = document.getElementById("challenge-desc");
+      const codeEl = document.getElementById("code");
+      const runBtn = document.getElementById("run-btn");
+      const feedback = document.getElementById("feedback");
+      const timerEl = document.getElementById("timer");
+      const barEl = document.getElementById("progress-bar");
+      const hintBtn = document.getElementById("hint-btn");
+      const hintText = document.getElementById("hint-text");
+      const resultScr = document.getElementById("result-screen");
+      const challengeScr = document.getElementById("challenge-area");
+      const scoreText = document.getElementById("score-text");
+      const restartBtn = document.getElementById("restart-btn");
+      const leaderboardScreen = document.getElementById("leaderboard-screen");
+      const leaderboardList = document.getElementById("leaderboard-list");
+      const leaderboardBtn = document.getElementById("leaderboard-btn");
+      const leaderboardBack = document.getElementById("leaderboard-back");
+      const startScreen = document.getElementById("start-screen");
+      const welcomeMsg = document.getElementById("welcome-msg");
+
+      let current = 0, score = 0, timeLeft = 60, timer;
+      let playerName = "";
+      let leaderboard = [];
+
+      function loadLeaderboard() {
+        const saved = localStorage.getItem("codebreaker_leaderboard");
+        leaderboard = saved ? JSON.parse(saved) : [];
+      }
+
+      function saveLeaderboard() {
+        localStorage.setItem("codebreaker_leaderboard", JSON.stringify(leaderboard));
+      }
+
+      function updateLeaderboard(name, score) {
+        leaderboard.push({name, score});
+        leaderboard.sort((a,b) => b.score - a.score);
+        if (leaderboard.length > 10) leaderboard.pop();
+        saveLeaderboard();
+      }
+
+      function renderLeaderboard() {
+        leaderboardList.innerHTML = leaderboard.length
+          ? leaderboard.map(e => `<li>${e.name}: ${e.score}</li>`).join("")
+          : "<li>No scores yet</li>";
+      }
+
+      function startGame() {
+        playerName = usernameInput.value.trim() || "Player";
+        score = 0;
+        current = 0;
+        startScreen.style.display = "none";
+        resultScr.style.display = "none";
+        leaderboardScreen.style.display = "none";
+        challengeScr.style.display = "block";
+        feedback.textContent = "";
+        hintText.textContent = "";
+        welcomeMsg.textContent = `Welcome, ${playerName}! Good luck!`;
+        loadChallenge();
+        startTimer();
+      }
+
+      function loadChallenge() {
+        const ch = CHALLENGES[current];
+        challengeTitle.textContent = ch.title;
+        challengeDesc.textContent = ch.desc;
+        codeEl.value = `// Write your code here\n`;
+        feedback.textContent = "";
+        hintText.textContent = "";
+        updateProgress();
+        resetTimer();
+      }
+
+      function resetTimer() {
+        clearInterval(timer);
+        timeLeft = 60;
+        timerEl.textContent = `⏱️ ${timeLeft}s`;
+        timer = setInterval(() => {
+          timeLeft--;
+          timerEl.textContent = `⏱️ ${timeLeft}s`;
+          if (timeLeft <= 0) {
+            clearInterval(timer);
+            runChallenge();
+          }
+        }, 1000);
+      }
+
+      function startTimer() {
+        resetTimer();
+      }
+
+      function updateProgress() {
+        const percent = ((current) / CHALLENGES.length) * 100;
+        barEl.style.width = percent + "%";
+      }
+
+      function runChallenge() {
+        clearInterval(timer);
+        const ch = CHALLENGES[current];
+        const userCode = codeEl.value;
+        let sandbox = {};
+        try {
+          const wrapper = new Function("sandbox", `with(sandbox) { ${userCode} }`);
+          wrapper(sandbox);
+          const passed = ch.tests(sandbox);
+          if (passed) {
+            score++;
+            feedback.innerHTML = "<p class='success'>✔️ Correct!</p>";
+          } else {
+            feedback.innerHTML = "<p class='error'>❌ Incorrect Output</p>";
+          }
+        } catch (e) {
+          feedback.innerHTML = `<p class='error'>⚠️ Error: ${e.message}</p>`;
+        }
+
+        setTimeout(() => {
+          current++;
+          if (current < CHALLENGES.length) {
+            loadChallenge();
+            startTimer();
+          } else {
+            showResults();
+          }
+        }, 1500);
+      }
+
+      function showResults() {
+        challengeScr.style.display = "none";
+        resultScr.style.display = "block";
+        updateLeaderboard(playerName, score);
+        scoreText.textContent = `You solved ${score} out of ${CHALLENGES.length} correctly.`;
+        new Chart(document.getElementById("result-chart"), {
+          type: "doughnut",
+          data: {
+            labels: ["Correct", "Incorrect"],
+            datasets: [{
+              data: [score, CHALLENGES.length - score],
+              backgroundColor: ["#00ff88", "#ff5577"]
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false
+          }
+        });
+      }
+
+      // Button event handlers
+      startBtn.onclick = () => {
+        if (!usernameInput.value.trim()) {
+          alert("Please enter your name to start!");
+          usernameInput.focus();
+          return;
+        }
+        startGame();
+      };
+      runBtn.onclick = runChallenge;
+      restartBtn.onclick = () => {
+        startScreen.style.display = "block";
+        resultScr.style.display = "none";
+        challengeScr.style.display = "none";
+        leaderboardScreen.style.display = "none";
+        usernameInput.focus();
+      };
+      hintBtn.onclick = () => {
+        const hint = CHALLENGES[current].hint || "No hint available.";
+        hintText.textContent = hint;
+      };
+      leaderboardBtn.onclick = () => {
+        renderLeaderboard();
+        leaderboardScreen.style.display = "block";
+        resultScr.style.display = "none";
+      };
+      leaderboardBack.onclick = () => {
+        leaderboardScreen.style.display = "none";
+        resultScr.style.display = "block";
+      };
+
+      // Show start screen initially
+      startScreen.style.display = "block";
+    })();
+  </script>
+</body>
+</html>
